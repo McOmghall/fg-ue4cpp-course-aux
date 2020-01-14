@@ -5,6 +5,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Net/UnrealNetwork.h"
 
+
 ADoor::ADoor()
 {
 	bReplicates = true;
@@ -15,6 +16,25 @@ ADoor::ADoor()
 void ADoor::BeginPlay()
 {
 	Super::BeginPlay();
+	FTimerDelegate TimerCallback;
+	TimerCallback.BindLambda([this]
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Client function BEGINPLAY call in %s"), *(GETENUMSTRING("ENetRole", GetLocalRole())));
+		ClientTest();
+		UE_LOG(LogTemp, Warning, TEXT("NetMulticast function BEGINPLAY call in %s"), *(GETENUMSTRING("ENetRole", GetLocalRole())));
+		MulticastTest();
+
+		if (GetLocalRole() == ROLE_Authority)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ServerOnly Client function BEGINPLAY call in %s"), *(GETENUMSTRING("ENetRole", GetLocalRole())));
+			ClientTest();
+			UE_LOG(LogTemp, Warning, TEXT("ServerOnly NetMulticast function BEGINPLAY call in %s"), *(GETENUMSTRING("ENetRole", GetLocalRole())));
+			MulticastTest();
+		}
+	});
+
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle, TimerCallback, 5.0f, false);
 }
 
 void ADoor::OnConstruction(const FTransform& Transform)
@@ -37,19 +57,18 @@ void ADoor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimePro
 	DOREPLIFETIME(ADoor, bIsOpen);
 }
 
-void ADoor::SetIsOpen(bool bNewIsOpen)
+void ADoor::ServerSetIsOpen_Implementation(bool bNewIsOpen)
 {
-	if (GetLocalRole() != ROLE_Authority)
-	{
-		return;
-	}
 	if (bNewIsOpen == bIsOpen)
 	{
 		return;
 	}
 
 	bIsOpen = bNewIsOpen;
-	OnRep_IsOpen(!bIsOpen);
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		OnRep_IsOpen(!bIsOpen);
+	}
 }
 
 void ADoor::OnRep_IsOpen(bool bOldIsOpen)
